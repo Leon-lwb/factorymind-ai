@@ -155,7 +155,11 @@ class SupOsEndpoints:
     here: events arrive over MQTT and are served by `MqttBackedSupOsClient`.
     """
 
-    nodes: str = "/inter-api/supos/uns/tree"
+    # The GET `/uns/tree` route ignores pagination in this CE build
+    # (`SYS_OS_LAZY_TREE=true` caps the reply at 10 rows), which truncates the
+    # plant. The POST condition-tree route honours `pageSize` and returns the
+    # whole UNS as one flat list — verified against `V1.5.0.0-M`.
+    nodes: str = "/inter-api/supos/uns/condition/tree"
     timeseries: str = "/inter-api/supos/uns/file/history/timeseries/query"
     current_values: str = "/inter-api/supos/uns/file/current/batchQuery"
 
@@ -201,20 +205,42 @@ class HttpSupOsClient:
     # -- reads ------------------------------------------------------------ #
 
     async def list_nodes(self, root_alias: str | None = None) -> Sequence[SupOsNode]:
-        # `/uns/tree` walks the hierarchy by numeric parent id; without one it
-        # returns the top level. The payload is nested, so it is flattened and
-        # parent links are injected (children do not carry their parent's alias).
-        params = {"parentId": root_alias} if root_alias else None
-        payload = await self._request("GET", self._endpoints.nodes, params=params)
-        return tuple(_parse_node(row) for row in _flatten_tree(_rows(payload)))
+        # The condition-tree route returns the whole UNS as one flat list in
+        # which every row carries its `parentAlias`, which is all the provider
+        # needs to rebuild Factory → Line → Station → Equipment/Process. A
+        # `pageSize` large enough to hold the plant is requested explicitly
+        # because the server default is 10 (`SYS_OS_LAZY_TREE=true`).
+        body: dict[str, object] = {"pageNo": 1, "pageSize": 500, "searchType": 1}
+        # Only a numeric id is accepted as `parentId` — an alias is not a valid
+        # subtree root, so a non-numeric root is left to client-side filtering.
+        if root_alias and str(root_alias).isdigit():
+            body["parentId"] = int(root_alias)
+        payload = await self._request("POST", self._endpoints.nodes, json=body)
+        nodes = tuple(_parse_node(row) for row in _flatten_tree(_rows(payload)))
+        if root_alias and not str(root_alias).isdigit():
+            nodes = tuple(
+                node
+                for node in nodes
+                if node.alias == root_alias or node.parent_alias == root_alias
+            )
+        return nodes
 
     async def query_timeseries(
         self, *, alias: str, start: datetime, end: datetime
     ) -> Sequence[SupOsSample]:
+        # The history query defaults to a 20-row page, which would silently
+        # truncate an 8h window (≈480 samples at 1/min), so a page large enough
+        # to hold the window is requested explicitly.
         payload = await self._request(
             "POST",
             self._endpoints.timeseries,
-            json={"alias": alias, "startTime": _iso(start), "endTime": _iso(end)},
+            json={
+                "alias": alias,
+                "startTime": _iso(start),
+                "endTime": _iso(end),
+                "pageNo": 1,
+                "pageSize": 2000,
+            },
         )
         return tuple(_parse_sample(row, alias=alias) for row in _rows(payload))
 
@@ -478,6 +504,9 @@ def _rows(payload: object) -> list[Mapping[str, object]]:
 
     supOS wraps results in an envelope (`{code, data}`) whose inner key varies
     by endpoint, so the common shapes are accepted rather than pinned to one.
+    The history query API is *columnar* — `data.header` names the columns and
+    `data.values` holds one positional array per row — so that shape is zipped
+    back into row mappings here, which is the only form the parsers see.
     """
     if isinstance(payload, list):
         return [row for row in payload if isinstance(row, Mapping)]
@@ -486,6 +515,15 @@ def _rows(payload: object) -> list[Mapping[str, object]]:
             if isinstance(candidate, list):
                 return [row for row in candidate if isinstance(row, Mapping)]
             if isinstance(candidate, Mapping):
+                header = candidate.get("header")
+                values = candidate.get("values")
+                if isinstance(header, list) and isinstance(values, list):
+                    columns = [str(name) for name in header]
+                    return [
+                        dict(zip(columns, row, strict=False))
+                        for row in values
+                        if isinstance(row, list)
+                    ]
                 for key in ("records", "rows", "list", "items"):
                     nested = candidate.get(key)
                     if isinstance(nested, list):
@@ -555,7 +593,8 @@ def _node_attributes(raw: Mapping[str, object]) -> dict[str, str]:
 
 def _parse_sample(raw: Mapping[str, object], *, alias: str) -> SupOsSample:
     return SupOsSample(
-        timestamp=_parse_timestamp(_first_value(raw, "timestamp", "time", "ts")),
+        # `timeStamp` is the column name the supOS history API returns.
+        timestamp=_parse_timestamp(_first_value(raw, "timeStamp", "timestamp", "time", "ts")),
         alias=alias,
         value=_coerce_float(_first_value(raw, "value", "val")),
     )
@@ -633,7 +672,16 @@ def _parse_timestamp(value: object) -> datetime:
 
 
 def _iso(moment: datetime) -> str:
-    return moment.isoformat()
+    """Render a datetime as RFC3339 with an explicit UTC offset.
+
+    supOS' history query rejects a bare `2026-10-12T10:30:00` (no offset) with
+    HTTP 400 — its `parseHistoryTimeValue` only matches RFC3339-style layouts,
+    all of which carry a zone. The engine works in naive UTC (see
+    `_parse_timestamp`), so a naive value is tagged UTC before serialising.
+    """
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone(UTC).isoformat()
 
 
 def _to_equipment_type(value: object) -> EquipmentType:

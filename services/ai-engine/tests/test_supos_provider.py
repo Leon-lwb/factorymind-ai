@@ -334,7 +334,10 @@ def _http_client(handler: Callable[[httpx.Request], httpx.Response]) -> HttpSupO
 def test_http_client_flattens_uns_tree_and_sends_the_community_token_cookie() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["cookie"] == "supos_community_token=secret"
-        assert request.url.path == "/inter-api/supos/uns/tree"
+        assert request.url.path == "/inter-api/supos/uns/condition/tree"
+        # The CE build caps the GET tree at 10 rows; the condition-tree route
+        # honours this body's pageSize, so a large page is requested explicitly.
+        assert json.loads(request.content)["pageSize"] >= 100
         return httpx.Response(
             200,
             json={
@@ -390,7 +393,10 @@ def test_http_client_parses_timeseries_and_coerces_values() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
         assert body["alias"] == "ST-A40_FPY"
-        assert body["startTime"] == START.isoformat()
+        # supOS rejects a bare timestamp (HTTP 400); the zone is made explicit.
+        assert body["startTime"] == f"{START.isoformat()}+00:00"
+        # The 20-row default page would truncate an 8h window.
+        assert body["pageSize"] >= 100
         return httpx.Response(
             200,
             json={

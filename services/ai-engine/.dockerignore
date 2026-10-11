@@ -1,0 +1,13 @@
+# Keep the image to the service itself. Tests, caches and local tooling must
+# not enter the build context — a smaller context also means a smaller image.
+.venv/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.py[cod]
+
+tests/
+scripts/
+
+.env
+*.log

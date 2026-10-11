@@ -1,0 +1,138 @@
+{
+  "_comment": [
+    "FactoryMind AI — 装配线质量 UNS 模型（open supOS V1.5.0.0-M）。",
+    "本文件是 UNS 建模的唯一事实来源：scripts/seed_uns.py 读它生成 POST /inter-api/supos/uns/batch 的请求体，",
+    "tests/test_uns_model.py 校验它（别名合法、父先于子、每工位 5 个时序文件、指标别名与 provider 模板一致）。",
+    "所有别名为合成/匿名标识，符合后端 templateAliasPattern ^[A-Za-z_$][A-Za-z0-9_$]*$（不含点号与连字符）。",
+    "所有数据为合成数据，不含任何真实工厂、车型、供应商或人员信息。"
+  ],
+  "version": 1,
+  "baseline": "V1.5.0.0-M",
+
+  "root": {
+    "alias": "FAC_DEMO_01",
+    "name": "示范总装工厂",
+    "displayName": "示范总装工厂",
+    "extendProperties": { "factorymindType": "factory", "country": "CN" }
+  },
+
+  "metricAliasTemplate": "{station}_{metric}",
+  "stationMetrics": ["fpy", "nokRate", "torqueNokRate", "cycleTime", "toolErrorRate"],
+
+  "metrics": {
+    "fpy": {
+      "slug": "FPY",
+      "displayName": "一次合格率 FPY",
+      "unit": "%",
+      "field": "value",
+      "dataType": 1,
+      "description": "工位一次合格率，百分比数值"
+    },
+    "nokRate": {
+      "slug": "NOK_RATE",
+      "displayName": "不良率 NOK Rate",
+      "unit": "%",
+      "field": "value",
+      "dataType": 1,
+      "description": "工位不良率，百分比数值"
+    },
+    "torqueNokRate": {
+      "slug": "TORQUE_NOK_RATE",
+      "displayName": "扭矩不合格率",
+      "unit": "%",
+      "field": "value",
+      "dataType": 1,
+      "description": "关键扭矩拧紧不合格率，百分比数值"
+    },
+    "cycleTime": {
+      "slug": "CYCLE_TIME",
+      "displayName": "节拍 Cycle Time",
+      "unit": "s",
+      "field": "value",
+      "dataType": 1,
+      "description": "工位节拍，单位秒"
+    },
+    "toolErrorRate": {
+      "slug": "TOOL_ERROR_RATE",
+      "displayName": "工具故障率",
+      "unit": "%",
+      "field": "value",
+      "dataType": 1,
+      "description": "工具（拧紧枪等）故障率，百分比数值"
+    }
+  },
+
+  "fileFields": [
+    { "name": "value", "type": "DOUBLE" },
+    { "name": "timeStamp", "type": "DATETIME" },
+    { "name": "quality", "type": "LONG" }
+  ],
+
+  "lines": [
+    {
+      "alias": "LINE_A",
+      "name": "总装一线",
+      "stations": [
+        { "alias": "ST_A10", "name": "内饰装配" },
+        {
+          "alias": "ST_A20",
+          "name": "底盘合装",
+          "equipment": [
+            { "alias": "EQ_A20_01", "name": "合装机器人", "equipmentType": "ROBOT" }
+          ],
+          "processes": [
+            { "alias": "PR_A20_01", "name": "底盘合装定位", "operation": "合装" }
+          ]
+        },
+        { "alias": "ST_A30", "name": "车门装配" },
+        {
+          "alias": "ST_A40",
+          "name": "关键扭矩拧紧",
+          "equipment": [
+            { "alias": "EQ_A40_01", "name": "电动拧紧枪 #1", "equipmentType": "TORQUE_TOOL" },
+            { "alias": "EQ_A40_02", "name": "电动拧紧枪 #2", "equipmentType": "TORQUE_TOOL" },
+            { "alias": "EQ_A40_03", "name": "工位 PLC", "equipmentType": "PLC" }
+          ],
+          "processes": [
+            { "alias": "PR_A40_01", "name": "关键扭矩拧紧", "operation": "拧紧" },
+            { "alias": "PR_A40_02", "name": "扭矩复检", "operation": "复检" }
+          ]
+        },
+        { "alias": "ST_A50", "name": "终检" }
+      ]
+    },
+    {
+      "alias": "LINE_B",
+      "name": "总装二线",
+      "stations": [
+        { "alias": "ST_B10", "name": "内饰装配" },
+        { "alias": "ST_B20", "name": "底盘合装" },
+        { "alias": "ST_B30", "name": "关键扭矩拧紧" },
+        { "alias": "ST_B40", "name": "终检" }
+      ]
+    }
+  ],
+
+  "events": {
+    "_comment": "supOS CE 无 REST 事件端点；事件经 EMQX 推送，载荷字段名与 providers/supos_mqtt.parse_event_payload 的解析键一致。",
+    "brokerEnv": "SUPOS_MQTT_URL",
+    "topicTemplate": "factorymind/uns/{station}/events",
+    "subscribeTopic": "factorymind/uns/#",
+    "payload": {
+      "stationAlias": "工位 UNS 别名，如 ST_A40",
+      "equipmentAlias": "设备 UNS 别名，可空，如 EQ_A40_01",
+      "type": "事件类型，取值同 IndustrialEventType：MAINTENANCE/TOOL_ERROR/PLC_ERROR/SENSOR_FAULT/MATERIAL_CHANGE/SHIFT_CHANGE",
+      "severity": "严重度，取值同 RiskLevel：LOW/MEDIUM/HIGH",
+      "message": "事件描述（合成文本）",
+      "timestamp": "ISO-8601 时间戳，如 2026-10-01T09:30:00Z"
+    },
+    "example": {
+      "stationAlias": "ST_A40",
+      "equipmentAlias": "EQ_A40_01",
+      "type": "TOOL_ERROR",
+      "severity": "HIGH",
+      "message": "电动拧紧枪 #1 连续触发拧紧程序超差报警",
+      "timestamp": "2026-10-01T09:30:00Z"
+    }
+  }
+}

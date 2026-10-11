@@ -1,0 +1,46 @@
+{
+  "rootCauseWeights": {
+    "correlation": 0.30,
+    "temporal": 0.25,
+    "magnitude": 0.20,
+    "fmeaRelevance": 0.15,
+    "historicalEvidence": 0.10
+  },
+  "fmeaMatching": {
+    "semanticThreshold": 0.42,
+    "maxCandidates": 3
+  },
+  "matchScores": {
+    "EXACT": 1.0,
+    "NORMALIZED": 0.9,
+    "LLM_CANDIDATE": 0.5
+  },
+  "actionPriority": {
+    "highSeverity": 9,
+    "highRpn": 200,
+    "mediumSeverity": 5,
+    "mediumRpn": 100
+  },
+  "fallbackRisk": {
+    "occurrence": 5,
+    "detection": 5
+  },
+  "historicalEvidenceScale": 10,
+  "causeEvidence": {
+    "MACHINE": {
+      "metrics": ["toolErrorRate"],
+      "events": ["TOOL_ERROR", "PLC_ERROR", "SENSOR_FAULT"]
+    },
+    "METHOD": { "metrics": [], "events": [] },
+    "MATERIAL": { "metrics": [], "events": [] },
+    "MAN": { "metrics": [], "events": [] },
+    "ENVIRONMENT": { "metrics": [], "events": [] }
+  },
+  "failureModes": {
+    "fpy:DOWN": "一次合格率下降",
+    "nokRate:UP": "不良率上升",
+    "torqueNokRate:UP": "扭矩不合格率上升",
+    "cycleTime:UP": "节拍延长",
+    "toolErrorRate:UP": "工具故障率上升"
+  }
+}

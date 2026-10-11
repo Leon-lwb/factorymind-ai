@@ -1,0 +1,59 @@
+{
+  "zScoreThreshold": 3.0,
+  "minEpisodePoints": 2,
+  "maxGapPoints": 6,
+  "severity": {
+    "zScale": 8.0,
+    "zWeight": 0.6,
+    "magnitudeWeight": 0.4
+  },
+  "evidence": {
+    "minCorrelatedZ": 2.0,
+    "fullScaleZ": 10.0,
+    "maxCorrelatedMetrics": 3,
+    "minBaselinePoints": 6,
+    "eventLookbackMinutes": 30,
+    "maxEvents": 3
+  },
+  "verification": {
+    "windowMinutes": 60,
+    "minPoints": 3
+  },
+  "metrics": {
+    "fpy": {
+      "direction": "DOWN",
+      "magnitudeScale": 2.5,
+      "label": "一次合格率 FPY",
+      "unit": "%",
+      "recoveryTolerance": 0.3
+    },
+    "nokRate": {
+      "direction": "UP",
+      "magnitudeScale": 0.6,
+      "label": "不良率 NOK",
+      "unit": "%",
+      "recoveryTolerance": 0.1
+    },
+    "torqueNokRate": {
+      "direction": "UP",
+      "magnitudeScale": 0.6,
+      "label": "扭矩不合格率",
+      "unit": "%",
+      "recoveryTolerance": 0.05
+    },
+    "cycleTime": {
+      "direction": "UP",
+      "magnitudeScale": 8.0,
+      "label": "节拍",
+      "unit": "s",
+      "recoveryTolerance": 1.0
+    },
+    "toolErrorRate": {
+      "direction": "UP",
+      "magnitudeScale": 0.35,
+      "label": "工具故障率",
+      "unit": "%",
+      "recoveryTolerance": 0.05
+    }
+  }
+}

@@ -1,0 +1,114 @@
+apiVersion: v4alpha1
+menus:
+  - code: factorymind_quality
+    parentCode:
+    moduleId: quality-copilot
+    name: 总装质量智能体
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url:
+    routerPrefix: false
+    sort: 9200
+    desc: FactoryMind AI 质量与风险分析入口
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]
+  - code: factorymind_overview
+    parentCode: factorymind_quality
+    moduleId: quality-copilot
+    name: 工厂总览
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url: /apps/factorymind/#/overview
+    routerPrefix: true
+    sort: 9210
+    desc:
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]
+  - code: factorymind_line
+    parentCode: factorymind_quality
+    moduleId: quality-copilot
+    name: 产线监控
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url: /apps/factorymind/#/line
+    routerPrefix: true
+    sort: 9220
+    desc:
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]
+  - code: factorymind_anomalies
+    parentCode: factorymind_quality
+    moduleId: quality-copilot
+    name: 异常中心
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url: /apps/factorymind/#/anomalies
+    routerPrefix: true
+    sort: 9230
+    desc:
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]
+  - code: factorymind_analysis
+    parentCode: factorymind_quality
+    moduleId: quality-copilot
+    name: AI 分析
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url: /apps/factorymind/#/analysis
+    routerPrefix: true
+    sort: 9240
+    desc:
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]
+  - code: factorymind_fmea
+    parentCode: factorymind_quality
+    moduleId: quality-copilot
+    name: FMEA 与风险
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url: /apps/factorymind/#/fmea
+    routerPrefix: true
+    sort: 9250
+    desc:
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]
+  - code: factorymind_actions
+    parentCode: factorymind_quality
+    moduleId: quality-copilot
+    name: 行动与验证
+    type: 1
+    openType: 0
+    showType: 1
+    iconType: 1
+    icon: /apps/factorymind/favicon.svg
+    url: /apps/factorymind/#/actions
+    routerPrefix: true
+    sort: 9260
+    desc:
+    hide: false
+    operations:
+    terminals: [ PC_WEB ]

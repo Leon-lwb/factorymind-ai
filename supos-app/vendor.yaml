@@ -1,0 +1,10 @@
+---
+apiVersion: v4alpha1
+vendor:
+  bluetronId: factorymind
+  showName: FactoryMind AI
+  organization: factorymind
+  url:
+  email:
+  copyright: FactoryMind AI — Apache-2.0
+  address:

@@ -1,0 +1,11 @@
+---
+apiVersion: v4alpha1
+images:
+  - name: factorymind-ai-front
+    tag: 1.0.0
+    dockerPath: bin/front
+    dockerfile: bin/front/Dockerfile
+  - name: factorymind-ai-backend
+    tag: 1.0.0
+    dockerPath: bin/backend
+    dockerfile: bin/backend/Dockerfile

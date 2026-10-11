@@ -1,0 +1,13 @@
+open-api:
+  - displayName: 获取工位质量评估
+    protocolType: http
+    apiMethod: get
+    sourceApiUrl: loop/quality-copilot/api/assess
+    description: 按工位与时间窗返回确定性质量指标（FPY/NOK/节拍）及评分
+    hasDefaultAuthorization: true
+  - displayName: 获取异常与根因解释
+    protocolType: http
+    apiMethod: get
+    sourceApiUrl: loop/quality-copilot/api/anomalies
+    description: 返回异常事件列表及 AI 根因解释（含证据、置信度与来源）
+    hasDefaultAuthorization: true

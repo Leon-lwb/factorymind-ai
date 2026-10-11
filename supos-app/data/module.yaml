@@ -1,0 +1,5 @@
+apiVersion: v4alpha1
+modules:
+  - id: quality-copilot
+    code: quality-copilot
+    name: FactoryMind AI 总装质量智能体

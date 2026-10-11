@@ -1,0 +1,45 @@
+---
+# open supOS application descriptor (mirrors spl-pl-distribution/compose.yaml).
+#
+# Two containers: `web` (nginx-served SPA, the route entrance) and `engine`
+# (FastAPI quality engine). The browser talks to one origin — nginx proxies
+# `/api/` to the engine — so only the web container is exposed through the
+# gateway.
+#
+# Container DNS: supOS addresses a container as `<appName>-<containerName>`,
+# which is why `bin/front/nginx.conf` proxies to `quality-copilot-engine:8100`
+# (app `quality-copilot` + container `engine`). Confirm on a live instance
+# (docs/SUPOS_INTEGRATION_CHECKLIST.md §8 item 2).
+apiVersion: v4alpha1
+service:
+  multiReplicas: false
+  replicas: 1
+  proxy:
+    paths:
+      - path: /
+        servicePort: 80
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  containers:
+    - name: web
+      image: factorymind-ai-front:1.0.0
+      resources:
+        requests:
+          memory: "128Mi"
+        limits:
+          memory: "256Mi"
+      ports:
+        - containerPort: 80
+      entrance: route
+    - name: engine
+      image: factorymind-ai-backend:1.0.0
+      resources:
+        requests:
+          memory: "256Mi"
+        limits:
+          memory: "1Gi"
+      ports:
+        - containerPort: 8100

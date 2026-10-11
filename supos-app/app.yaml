@@ -1,0 +1,12 @@
+---
+apiVersion: v4alpha1
+name: quality-copilot
+vendorName: factorymind
+appVersion: V1.0.0
+showName: FactoryMind AI 总装质量智能体
+description: 基于 open supOS 的装配线质量与风险智能助手：确定性引擎计算 FPY/NOK/节拍/Z-score/RPN，AI 仅做根因解释与建议，全部结论附证据与置信度。
+doc:
+icon: /statics/favicon.svg
+indexUrl: /apps/factorymind/#/overview
+type: normal
+deployMode: INSIDE

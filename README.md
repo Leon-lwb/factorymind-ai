@@ -49,7 +49,7 @@ FactoryMind AI 以**独立容器**形式部署在 supOS 旁边，通过网关的
 
 | 能力 | supOS 侧 | 本项目侧 |
 |---|---|---|
-| 工厂/产线/工位/设备/工艺层级 | UNS 模型树（ISA-95） | `SupOSProvider.get_factories/lines/stations/equipment/processes` |
+| 工厂/产线/工位/设备/工艺层级 | UNS 模型树（ISA-95）`POST /uns/condition/tree` | `SupOSProvider.get_factories/lines/stations/equipment/processes` |
 | 质量时序数据 | `POST /uns/file/history/timeseries/query` | `SupOSProvider.get_metrics` |
 | 实时/事件数据 | MQTT(EMQX) + `external/topic2Uns` | `SupOSProvider.get_events` |
 | 应用挂载（形态 B） | `POST /inter-api/supos/app/routes/register` | `scripts/register_supos_route.py`（先发现实例 schema 再注册，见 [`docs/SUPOS_INTEGRATION.md`](docs/SUPOS_INTEGRATION.md) §8.2）；⚠️ 真机实测：本 CE 构建 nginx 只 `include /etc/nginx/*.conf`，形态 B 写入的子目录**不生效** |
@@ -59,7 +59,7 @@ FactoryMind AI 以**独立容器**形式部署在 supOS 旁边，通过网关的
 数据源通过 `IndustrialDataProvider` 抽象隔离，`DATA_PROVIDER` 环境变量在 **mock** 与 **supos** 之间切换，上层（引擎/页面）零改动。
 
 > **集成基线**：锁定 open supOS `V1.5.0.0-M`。完整调研见 [`docs/SUPOS_RESEARCH.md`](docs/SUPOS_RESEARCH.md)，端点核验清单见 [`docs/SUPOS_INTEGRATION_CHECKLIST.md`](docs/SUPOS_INTEGRATION_CHECKLIST.md)。
-> **当前状态**：`SupOSProvider` 已实现（UNS 树 / 历史时序 / 事件 → 领域模型），端点路径集中在 `SupOsEndpoints`，已对照 open supOS `V1.5.0.0-M` 后端路由表核验，并已在**真机实例**（CE `V1.5.0.0-M`，网关 `:18088`）完成 UNS 模型导入（64 节点）、MQTT 事件通路、标准应用包安装与网关路由端到端验收（见 [`docs/SUPOS_INTEGRATION_CHECKLIST.md`](docs/SUPOS_INTEGRATION_CHECKLIST.md) §8 与 §10.4-3）。未配置 `SUPOS_API_URL` 时 `DATA_PROVIDER=supos` 会显式报错，绝不静默降级为 mock。我们不把合成数据伪装成真实 supOS 数据。
+> **当前状态**：`SupOSProvider` 已实现（UNS 树 / 历史时序 / 事件 → 领域模型），端点路径集中在 `SupOsEndpoints`，已对照 open supOS `V1.5.0.0-M` 后端路由表核验，并已在**真机实例**（CE `V1.5.0.0-M`，网关 `:18088`）完成 UNS 模型导入（64 节点）、MQTT 事件通路、标准应用包安装与网关路由、以及 **`DATA_PROVIDER=supos` 真机端到端取数**（层级 + 历史时序，见 [`docs/SUPOS_INTEGRATION_CHECKLIST.md`](docs/SUPOS_INTEGRATION_CHECKLIST.md) §8 与 §10.4-3）。未配置 `SUPOS_API_URL` 时 `DATA_PROVIDER=supos` 会显式报错，绝不静默降级为 mock。我们不把合成数据伪装成真实 supOS 数据。
 
 ---
 

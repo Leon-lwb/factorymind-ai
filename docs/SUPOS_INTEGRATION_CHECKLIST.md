@@ -1,9 +1,9 @@
 # open supOS 集成对接清单
 
 > FactoryMind AI 项目 · 基于 Gitee 源码的集成核验
-> 核验日期：2026-10-09（v1.2 更新：2026-10-11，加入**真机实测**结论）
+> 核验日期：2026-10-09（v1.2 更新：2026-10-11 加入**真机实测**结论；v1.3 更新：2026-10-12 加入 **Provider 真机取数闭环**）
 > 核验方式：**直接读取 Gitee 源码**（本地克隆 `supos-ce-backend` @ `b0930be`、`supos-ce-deploy` @ `a36787c`）+ **本地 supOS CE 实例实测**（网关 `:18088`），非文档猜测
-> 状态：v1.2（锁定集成面 + 大赛提交要求与赛程 + 真机拉起/登录/鉴权实测；带 ⚠️ 或 ⏳ 的项需在部署实例上最终确认）
+> 状态：v1.3（锁定集成面 + 大赛提交要求与赛程 + 真机拉起/登录/鉴权实测 + **Provider 真机端到端取数验收**；带 ⚠️ 或 ⏳ 的项需在部署实例上最终确认）
 
 本清单取代 `docs/SUPOS_RESEARCH.md` 中的"候选/待验证"表述——凡本文写明的端点，均来自仓库源码或按源码生成的 `INTER_API.md`。
 
@@ -208,7 +208,7 @@ type AppRouteRegistration struct {
 
 | 字段 | 现值 | 核验结论 | 修正为 |
 |---|---|---|---|
-| `nodes` | `/inter-api/supos/uns/model/nodes` | ❌ 源码无此路径 | `GET /inter-api/supos/uns/tree`（或 `POST /inter-api/supos/uns/condition/tree`） |
+| `nodes` | `/inter-api/supos/uns/model/nodes` | ❌ 源码无此路径；且 `GET /uns/tree` 在本构建受 `LAZY_TREE=true` 限制**只回 10 行且忽略 `pageSize`**（见 §8"Provider 真机取数"块） | **`POST /inter-api/supos/uns/condition/tree`**，body `{"pageNo":1,"pageSize":500,"searchType":1}` |
 | `timeseries` | `/inter-api/supos/uns/file/history/timeseries/query` | ✅ 正确 | 保持不变 |
 | `events` | `/inter-api/supos/uns/event/query` | ❌ 源码无此路径 | 事件来自：① MQTT 订阅 ② `GET /inter-api/supos/uns/getLastMsg` ③ `WS /inter-api/supos/uns/ws` ④ 历史时序查询 |
 
@@ -316,12 +316,47 @@ location ^~ /apps/factorymind/ {
 - 包内 `data/menu.yaml`、`data/module.yaml`、`data/syscode.yaml` 在 CE 下**不会生效**——CE 后端源码**无任何 `menu.yaml`/`module.yaml`/`syscode.yaml` 引用**，`supOS-CE.openapi.yaml` 也**无菜单接口**；`installStepFlags` 仅 `["front","i18n","route"]`（无 menu 步）。
 - ⇒ 门户侧边栏**不会出现本应用入口**（实测确认）。菜单/模块集成属**上层应用商店**职责。CE 环境下演示/接入请直接访问 **`http://<host>:18088/apps/factorymind/`**（或在门户内以外部链接/iframe 方式挂载）。
 
+### SupOS Provider 真机取数闭环（实测 2026-10-12）
+
+**目标**：`DATA_PROVIDER=supos` 时，引擎真正从真机读到 UNS 层级 + 时序数据（非 mock）。
+
+**① UNS 层级：`GET /uns/tree` 不可用 → 改 `POST /uns/condition/tree`**
+
+- `GET /inter-api/supos/uns/tree` 的路由（`router.go` L2577）**根本不解析 `pageNo/pageSize`**，只接 `parentId/key/type/pathType`；服务端 `normalizeTreeQuery` 把 `PageSize` 强制为 10 ⇒ 无论怎么传都**只回 10 行**（`LAZY_TREE=true`）。
+- `POST /inter-api/supos/uns/condition/tree`（body 走 `interUnsTreeConditionPayload`）**才认 `pageSize`**：`{"pageNo":1,"pageSize":500,"searchType":1}` → 一次返回全部 **64 节点**（扁平，含 `parentAlias`/`extend.factorymindType`）。
+- 已据此把 `SupOsEndpoints.nodes` 改为该路径 + POST body；层级重建结果：`FAC_DEMO_01`(factory) → `LINE_A/LINE_B`(line) → 每线 5 个 station → `EQ_*`(equipment)/`PR_*`(process)。
+
+**② 历史读写不一致（本构建缺陷）→ 同名视图对齐**
+
+- **写**：MQTT `{"value":x}` → backend `applyIncomingCurrentValueUpdate` → `writeCurrentValueHistory` → 写入 **`postgresql` 容器** `public.supos_timeserial_double`（列 `tag, "timeStamp", status, value`，**按节点 id 作 tag**）。
+- **读**：`POST /inter-api/supos/uns/file/history/timeseries/query` 用 `historyStoragePhysicalTable(detail, alias)` 解析物理表；本构建 `detail.Table` 为空 → **回退用 alias 当表名** → `relation "<ALIAS>" does not exist (42P01)`。
+- ⇒ 即"**写进共享表、读到别名表**"，两侧永不重合。
+- **修复（无需重建 supOS 镜像）**：为 45 个时序节点在 `postgresql.public` 建**同名视图**，映射到共享表：
+  `create view public."<alias>" as select "timeStamp", value, coalesce(status,0) as quality from public.supos_timeserial_double where tag = <id>;`
+  脚本：`services/ai-engine/scripts/seed_supos_history.py views`（幂等，`drop ... cascade` 后重建）。
+
+**③ 历史查询的两个隐蔽约束**
+
+- **时间戳必须带时区**：`parseHistoryTimeValue` 只匹配 RFC3339 系布局；发 `2026-10-12T10:30:00`（无偏移）→ HTTP 400 `uns.hist.startTime.invalid`。引擎侧 `_iso()` 已改为显式输出 `+00:00`。
+- **默认分页仅 20 行**：不传 `pageSize` 时 `simpleHistoryPaging` 取默认 20 ⇒ 8h 窗口（≈480 点）被静默截断。引擎侧已显式传 `pageSize: 2000`。
+
+**④ 数据回填 + 常驻喂数**
+
+- `seed_supos_history.py backfill --hours 8`：直写共享表，回填 45 节点 × 481 样例（含 `ST_A40` 最近 2h 扭矩异常爬升故事线）；`on conflict do nothing` 幂等。
+- `seed_supos_history.py feed --interval 5`：常驻 MQTT 喂数，保持 8h 窗口始终有新鲜数据（**录屏前须确保在跑**）。
+- 实测：MQTT 发到 **alias 主题或 path 主题均可**（两者都能命中节点，`getLastMsg?alias=` 读回一致），且都会追加一行到共享表（`tag` 计数随之增长）。
+
+**⑤ 端到端验收证据（2026-10-12）**
+
+- 引擎直连：`GET localhost:8100/api/health` → `dataProvider: supos`；`/factories` → `示范总装工厂`；`/metrics?metric=torqueNokRate` → **4266 点**（9 站 × 474），`ST_A40` mean 2.54 / 末值 11.07%（其余站 ≈1.4%）——异常故事线真实可读。
+- 经 supOS 网关：`GET 192.168.1.65:18088/apps/factorymind/api/{health,factories,metrics}` 带 `supos_community_token` Cookie 全部 **200** 且返回真机数据。
+
 ---
 
 ## 9. 下一步落地动作
 
 1. ✅ **已完成** — 修正 `supos.py` 的 `SupOsEndpoints`（§7），并更新 `docs/SUPOS_INTEGRATION.md`。
-   `nodes` → `/uns/tree`，移除 `events`，新增 `current_values` → `/uns/file/current/batchQuery`。
+   `nodes` → `POST /uns/condition/tree`（`GET /uns/tree` 受 `LAZY_TREE` 限制只回 10 行，见 §8"Provider 真机取数"块），移除 `events`，新增 `current_values` → `/uns/file/current/batchQuery`。
 2. ✅ **已完成（2026-10-11）** — 本地 open supOS CE（`supos-ce-deploy` `V1.5.0.0-M`，Docker Desktop / WSL2）已拉起：
    9 核心服务 + grafana 全部 `Up`；网关 `http://localhost:18088` 可达（`/`→302 `/supos-login`）；
    默认账号 `supos`/`supos` 登录验证通过。起栈命令与实测结论见 §8。
@@ -411,7 +446,7 @@ location ^~ /apps/factorymind/ {
 | 9 | AI 解释（默认 `MockAiProvider`） | AI | 仅Mock·Stub | 0.25 | `providers/ai.py`；schema 真实、文本占位 |
 | 10 | 真实 LLM（OpenAI-compatible） | AI | 部分 | 0.5 | `providers/ai_openai.py` 已实现；默认未启用、未真机验证 |
 | 11 | Mock 合成数据源（seed=2026 可复现） | 数据 | 已实现 | 1.0 | `providers/mock.py` |
-| 12 | SupOS Provider（UNS 树 + 历史时序 + 事件） | 数据 | 部分 | 0.5 | `providers/supos.py` + 单测；真机端到端取数未验证 |
+| 12 | SupOS Provider（UNS 树 + 历史时序 + 事件） | 数据 | 已实现 | 1.0 | `providers/supos.py` + 单测；**真机端到端取数已验收**（§8"Provider 真机取数"块）：层级 64 节点、`/metrics` 4266 点真实可读；事件按设计走 MQTT（见 #13） |
 | 13 | supOS MQTT 事件源 | 数据 | 已实现 | 1.0 | `providers/supos_mqtt.py`；真机闭环 ✅ |
 | 14 | UNS 模型导入（64 节点） | 平台 | 已实现 | 1.0 | `scripts/seed_uns.py`；真机 ✅ |
 | 15 | 标准应用包（形态 A） | 平台 | 已实现 | 1.0 | `supos-app/`；真机安装 ✅ |
@@ -434,23 +469,23 @@ location ^~ /apps/factorymind/ {
 |---|---|---|---|
 | A 核心分析闭环 | 8 | 8.00 | 100% |
 | B AI 解释层 | 2 | 0.75 | 37.5% |
-| C 数据接入 | 3 | 2.50 | 83.3% |
+| C 数据接入 | 3 | 3.00 | 100% |
 | D open supOS 平台集成 | 7 | 3.50 | 50.0% |
 | E 前端 | 3 | 1.00 | 33.3% |
 | F 工程化 | 4 | 3.00 | 75.0% |
-| **合计** | **27** | **18.75** | **69.4%** |
+| **合计** | **27** | **19.25** | **71.3%** |
 
 | 状态 | 项数 | 占比 | 权重 |
 |---|---|---|---|
-| 已实现 | 17 | 63.0% | ×1.0 |
-| 部分实现 | 3 | 11.1% | ×0.5 |
+| 已实现 | 18 | 66.7% | ×1.0 |
+| 部分实现 | 2 | 7.4% | ×0.5 |
 | 仅 Mock·Stub | 1 | 3.7% | ×0.25 |
 | **未实现** | **6** | **22.2%** | ×0 |
 
-**结论：加权完成度 18.75 ÷ 27 = 69.4%（≈69%）；未实现 6/27 = 22.2%。**
+**结论：加权完成度 19.25 ÷ 27 = 71.3%（≈71%）；未实现 6/27 = 22.2%。**
 未实现 6 项：Keycloak 授权码流程（应用内）、门户菜单/模块集成、权限/租户隔离、i18n 中英切换、前端自动化测试、行动项持久化。
 
-**真机验证 vs Mock 验证（§10.6）**：核心分析闭环与 supOS 集成（UNS 导入 / MQTT 事件 / 应用包 / 网关路由）为**真机验证**；指标数值与 AI 解释为 **Mock 验证**（`DATA_PROVIDER=mock`、`AI_PROVIDER=mock` 默认）。
+**真机验证 vs Mock 验证（§10.6）**：核心分析闭环与 supOS 集成（UNS 导入 / **Provider 真机取数** / MQTT 事件 / 应用包 / 网关路由）为**真机验证**；AI 解释为 **Mock 验证**（`AI_PROVIDER=mock` 默认）。指标数值支持 `DATA_PROVIDER=supos` 真机读取（已验收，见 §8"Provider 真机取数"块），示例配置默认仍为 `mock` 以保证零依赖可跑。
 
 **验证缺口（非功能缺失，不计入分母）**
 

@@ -55,8 +55,8 @@ DATA_PROVIDER=supos   # 生产：连接真实 open supOS
 
 | 用途 | 路径 | 来源 | 状态 |
 |---|---|---|---|
-| UNS 树读取 | `GET /inter-api/supos/uns/tree` | 后端路由表（`parentId/pathType/key/type`，返回嵌套树，适配器负责展平） | 源码已核验 |
-| 历史时序查询 | `POST /inter-api/supos/uns/file/history/timeseries/query` | 后端路由表（body: `alias, startTime, endTime`） | 源码已核验 |
+| UNS 树读取 | `POST /inter-api/supos/uns/condition/tree` | 后端路由表（body: `pageNo, pageSize, searchType`，返回扁平列表，含 `parentAlias`）。**不用 `GET /uns/tree`**：该 GET 路由不解析分页，受 `LAZY_TREE` 限制只回 10 行 | 真机已验收 |
+| 历史时序查询 | `POST /inter-api/supos/uns/file/history/timeseries/query` | 后端路由表（body: `alias, startTime, endTime`，**时间戳须带时区、`pageSize` 须显式指定**） | 真机已验收 |
 | 当前值批量查询 | `POST /inter-api/supos/uns/file/current/batchQuery` | 后端路由表（body: `[alias, ...]`） | 源码已核验 |
 | 事件读取 | —（无 REST 端点） | supOS CE 未提供事件查询 REST 接口 | 事件仅经 MQTT 接入 |
 

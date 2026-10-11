@@ -8,7 +8,8 @@
 
 - **集成基线升级到 open supOS `V1.5.0.0-M`**（原 `V1.3.0.0-M` 已落后两个版本）。
 - **端点对照后端源码核验并修正**（依据 `supos-ce-backend` 路由表，非猜测）：
-  - `SupOsEndpoints.nodes`：`/uns/model/nodes`（**该路径不存在**）→ `GET /inter-api/supos/uns/tree`，并新增 `_flatten_tree` 处理嵌套 `children`、补全子节点 `parentAlias`。
+  - `SupOsEndpoints.nodes`：`/uns/model/nodes`（**该路径不存在**）→ 最终定为 **`POST /inter-api/supos/uns/condition/tree`**（body `{"pageNo":1,"pageSize":500,"searchType":1}`）。保留 `_flatten_tree` 兼容嵌套 `children`；`GET /uns/tree` 因不解析分页且受 `LAZY_TREE` 限制只回 10 行而弃用。
+  - `query_timeseries`：请求体补 `pageNo/pageSize`（默认分页仅 20 行会截断 8h 窗口）；时间戳经 `_iso()` 输出为**带 `+00:00` 的 RFC3339**（无偏移会被 supOS 判 400 `uns.hist.startTime.invalid`）。
   - 移除 `SupOsEndpoints.events`：supOS CE **无 REST 事件查询端点**，`HttpSupOsClient.query_events` 改为显式抛 `SupOsUnavailableError`。
   - 新增 `SupOsEndpoints.current_values` = `POST /inter-api/supos/uns/file/current/batchQuery`（批量取当前值）。
 - **`SUPOS_EVENT_SOURCE` 默认值 `rest` → `mqtt`**：`rest` 已不受支持（supOS CE 无事件端点），启动即 `ValueError` 并提示改用 MQTT。
@@ -46,6 +47,10 @@
   - 只回填实测 `OK` 的路径（2xx 且适配器信封解析器取到行）；仅 2xx 但解析不了的 `WARN` 候选默认跳过，需显式 `--allow-warn`。
   - 默认 dry-run 只打印 unified diff；`--write` 才落盘，且落盘前用 `ast.parse` 校验，绝不写入坏代码；路径已一致时幂等返回。
   - `--check` 模式供 CI 使用：只读比对默认值与核验报告，不一致即退出 `3`（代码漂移），与 `--write` 互斥。
+- **真机取数脚本**（`services/ai-engine/scripts/`）：打通并维持 `DATA_PROVIDER=supos` 的真实取数。
+  - `seed_supos_history.py`：三条子命令——`views` 为 45 个时序节点在 `postgresql.public` 建同名视图，映射到 supOS 实际写入的共享表 `supos_timeserial_double`（`tag=节点 id`），**绕开本构建"写共享表 / 读别名表"的历史读写不一致缺陷**（否则 history 查询报 `42P01 relation does not exist`）；`backfill --hours 8` 幂等回填 45×481 样例（含 `ST_A40` 扭矩异常爬升故事线）；`feed --interval N` 常驻 MQTT 喂数，保持 8h 窗口持续有新鲜数据。
+  - `supos_demo_env.py`：用 Keycloak password 授权换取用户 access_token，生成 `factorymind-ai/.env`（`DATA_PROVIDER=supos` + `SUPOS_API_*` + `SUPOS_MQTT_*`），一键切换数据源。
+  - 实测端到端验收（2026-10-12）：`/api/health` → `dataProvider: supos`；层级 64 节点；`/api/metrics?metric=torqueNokRate` → 4266 点，`ST_A40` 异常可读；经网关 `/apps/factorymind/api/*` 同样返回真机数据。
 - **AI 解释层真实化** `OpenAiCompatibleAiProvider`（`services/ai-engine/app/providers/ai_openai.py`，spec §6.1 / §7 / §20）：
   - 任何兼容 OpenAI chat-completions 的服务均可驱动（DeepSeek / Qwen / Moonshot / 本地 Ollama / OpenAI 本身），传输层为纯 `httpx`，不引入厂商 SDK。
   - **三条规则在代码里强制，而非交给提示词**：① 引擎拥有的数值（风险 S/O/D/RPN/AP、根因排序、时间戳）一律由请求注入，模型返回值被忽略；② 每条措施引用的 `evidence_ids` 必须真实存在，引用不存在的证据即**整体拒绝**；③ 非 JSON、缺字段、类型错、措施为空一律抛 `AiProviderError`，**不静默降级为 mock**（spec §23）。

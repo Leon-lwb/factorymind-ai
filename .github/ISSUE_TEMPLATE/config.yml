@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用与开发文档
+    url: https://github.com/
+    about: 提问前请先阅读 README.md 与 CONTRIBUTING.md
+  - name: 数据安全提醒
+    url: https://github.com/
+    about: 请勿在公开 Issue 中粘贴真实生产数据、车型信息或任何账号密钥

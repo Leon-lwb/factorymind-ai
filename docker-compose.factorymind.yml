@@ -1,0 +1,53 @@
+# FactoryMind AI — application stack (spec §19, §22).
+#
+# Standalone run (mock providers, no supOS required):
+#   cp .env.example .env
+#   docker compose -f docker-compose.factorymind.yml up --build
+#   → web  http://localhost:8080
+#   → api  http://localhost:8100/api/health
+#
+# Attached to an existing open supOS deployment (so the gateway can reach the
+# web container over the shared network), add the override:
+#   docker compose -f docker-compose.factorymind.yml -f docker-compose.supos.yml up --build
+#
+# Host ports avoid every port the supOS CE deploy claims
+# (8088/8443/1883/5432/2345/8081/3000/9000/1880/8000).
+name: factorymind-ai
+
+services:
+  factorymind-engine:
+    build:
+      context: ./services/ai-engine
+    image: factorymind-ai-engine:0.1.0
+    restart: unless-stopped
+    # `.env` is optional: with none present the mock providers run the full loop.
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # In a container the service must bind all interfaces; the compose network
+      # (and, under the override, the supOS gateway) reaches it from outside.
+      AI_ENGINE_HOST: 0.0.0.0
+      AI_ENGINE_PORT: "8100"
+    ports:
+      - "8100:8100"
+    networks:
+      - factorymind
+
+  factorymind-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: factorymind-ai-web:0.1.0
+    restart: unless-stopped
+    depends_on:
+      factorymind-engine:
+        condition: service_healthy
+    ports:
+      - "8080:80"
+    networks:
+      - factorymind
+
+networks:
+  factorymind:
+    name: factorymind_default

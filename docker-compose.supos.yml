@@ -1,0 +1,23 @@
+# Override: attach FactoryMind AI to an existing open supOS deployment.
+#
+#   docker compose -f docker-compose.factorymind.yml -f docker-compose.supos.yml up --build
+#
+# The network is created by the supOS CE deploy (`supos-ce-deploy`); it must
+# already exist. Verify with `docker network ls | findstr supos`. Once attached,
+# the gateway can proxy to `factorymind-web:80` after the route is registered
+# (see docs/SUPOS_INTEGRATION.md §9).
+networks:
+  supos:
+    name: supos_default_network
+    external: true
+
+services:
+  factorymind-engine:
+    networks:
+      - factorymind
+      - supos
+
+  factorymind-web:
+    networks:
+      - factorymind
+      - supos

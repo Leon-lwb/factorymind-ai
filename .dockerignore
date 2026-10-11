@@ -1,0 +1,29 @@
+# Applies to builds whose context is the repository root — i.e. the web image
+# (`docker build -f apps/web/Dockerfile .`). Without this the daemon would be
+# sent node_modules, .venv and git history, none of which the build needs.
+# The engine image uses services/ai-engine/.dockerignore instead.
+
+**/node_modules
+**/.pnpm-store
+**/.venv
+**/venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/dist
+**/build
+**/*.tsbuildinfo
+**/*.egg-info
+
+.git
+.gitignore
+.github
+
+# Secrets must never enter a layer.
+.env
+.env.*
+!.env.example
+
+docs/
+*.log

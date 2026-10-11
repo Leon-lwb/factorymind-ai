@@ -1,0 +1,7 @@
+# 统一换行：仓库内一律以 LF 存储，避免 Windows 检出把 .sh / Dockerfile 变成 CRLF。
+* text=auto eol=lf
+
+# Windows 专属脚本保留 CRLF 更自然。
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

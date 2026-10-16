@@ -44,14 +44,18 @@ export function pad(value: number): string {
 }
 
 /**
- * Formats an instant the way the engine expects it: local wall-clock, no zone
- * suffix. `toISOString()` would emit UTC, which then round-trips back through
- * `new Date(...)` as local time and silently shifts every label by the offset.
+ * Formats an instant the way the engine expects it: a bare wall-clock string
+ * with no zone suffix. The engine tags naive values as UTC before calling
+ * supOS (`_iso()` in the provider), so this must emit **UTC** wall-clock —
+ * emitting local wall-clock shifts the query window by the browser's offset
+ * (+08:00 here), which makes every history request miss the stored data.
+ * Point timestamps come back from the engine with an explicit zone, so display
+ * labels stay correct either way.
  */
 export function toIsoSeconds(date: Date): string {
   return [
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`,
+    `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`,
+    `${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}`,
   ].join('T')
 }
 

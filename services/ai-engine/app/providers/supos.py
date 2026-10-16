@@ -524,6 +524,12 @@ def _rows(payload: object) -> list[Mapping[str, object]]:
                         for row in values
                         if isinstance(row, list)
                     ]
+                # supOS answers an empty history window with the columnar
+                # envelope minus `values` (header + total:0, no rows). That is
+                # a legitimately empty series, not a shape error: return [] so
+                # an empty window surfaces as "no points" instead of a 500.
+                if isinstance(header, list) and values is None:
+                    return []
                 for key in ("records", "rows", "list", "items"):
                     nested = candidate.get(key)
                     if isinstance(nested, list):
